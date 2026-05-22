@@ -1,4 +1,5 @@
 import { NavLink, Outlet, Link } from 'react-router-dom';
+import { useAuth } from '../lib/auth';
 
 const NAV = [
   { to: '/', label: 'טבלה', icon: '🏆' },
@@ -8,8 +9,14 @@ const NAV = [
 ];
 
 export function Layout() {
+  const { isDemoMode } = useAuth();
   return (
     <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
+      {isDemoMode && (
+        <div className="bg-amber-900/40 border-b border-amber-700/40 text-amber-200 text-xs text-center py-1.5">
+          מצב דמו · ללא חיבור לשרת. הימורים לא נשמרים בצד שרת.
+        </div>
+      )}
       <header className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur border-b border-slate-800">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 font-bold">

@@ -1,9 +1,21 @@
+import { useState } from 'react';
 import { LockBanner } from '../components/LockBanner';
-import { TOURNAMENT_OPENER_ISO } from '../mock-data';
+import { BracketView } from '../components/BracketView';
+import { GroupRankingPicker } from '../components/GroupRankingPicker';
+import { TeamPickerSheet } from '../components/TeamPickerSheet';
+import {
+  TOURNAMENT_OPENER_ISO,
+  MOCK_TEAMS,
+  MOCK_GROUPS,
+  GROUP_NAMES,
+} from '../mock-data';
 import { isPast } from '../lib/time';
+import type { Team } from '../types';
 
 export function Tournament() {
   const isLocked = isPast(TOURNAMENT_OPENER_ISO);
+  const [champion, setChampion] = useState<Team | null>(null);
+  const [championPickerOpen, setChampionPickerOpen] = useState(false);
 
   return (
     <section className="space-y-5">
@@ -20,81 +32,127 @@ export function Tournament() {
         nextTransitionAt={TOURNAMENT_OPENER_ISO}
       />
 
-      <Card title="אלוף המונדיאל" emoji="🏆" pointsHe="+20 נק׳" placeholder="בחר את הקבוצה שלפי דעתך תזכה בטורניר" />
-      <Card title="מלך השערים" emoji="⚽" pointsHe="+20 נק׳" placeholder="בחר את השחקן שלפי דעתך יסיים עם מספר השערים הגבוה ביותר" />
+      <TwoUpCard>
+        <PickCard
+          title="אלוף המונדיאל"
+          emoji="🏆"
+          pointsHe="+20 נק׳"
+          subtitle="הקבוצה שלפי דעתך תזכה בטורניר"
+          selectedName={champion?.nameHe}
+          selectedFlag={champion?.flagEmoji}
+          locked={isLocked}
+          onClick={() => setChampionPickerOpen(true)}
+        />
+        <PickCard
+          title="מלך השערים"
+          emoji="⚽"
+          pointsHe="+20 נק׳"
+          subtitle="השחקן עם מספר השערים הגבוה ביותר"
+          selectedName={null}
+          locked={isLocked}
+          onClick={() => {
+            // Player picker is a follow-up — needs full rosters.
+          }}
+        />
+      </TwoUpCard>
 
-      <div className="space-y-3">
-        <h2 className="text-base font-semibold text-slate-200 px-1">
-          דירוגי הבתים
-        </h2>
-        <p className="text-xs text-slate-500 px-1">
-          5 נקודות לכל קבוצה במקום הנכון בכל בית. עד 240 נקודות.
-        </p>
-        <div className="grid grid-cols-2 gap-2">
-          {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'].map(
-            (g) => (
-              <div
-                key={g}
-                className="bg-slate-900 rounded-xl border border-slate-800 px-3 py-3 text-center"
-              >
-                <div className="text-xs text-slate-500">בית</div>
-                <div className="text-lg font-bold">{g}</div>
-                <div className="text-xs text-slate-500 mt-1">דרג</div>
-              </div>
-            ),
-          )}
+      <Section title="דירוגי הבתים" subtitle="5 נקודות לכל קבוצה במקום הנכון בכל בית.">
+        <div className="space-y-3">
+          {GROUP_NAMES.map((g) => (
+            <GroupRankingPicker
+              key={g}
+              groupName={g}
+              teams={MOCK_GROUPS[g]}
+              locked={isLocked}
+            />
+          ))}
         </div>
-      </div>
+      </Section>
 
-      <div className="space-y-3">
-        <h2 className="text-base font-semibold text-slate-200 px-1">
-          סוללת הנוקאאוט
-        </h2>
-        <p className="text-xs text-slate-500 px-1">
-          5 נקודות לכל מנצח שצדקת בו (R32, R16, רבע, חצי, גמר, מקום שלישי).
-          ניתן לערוך פעם אחת בסיום שלב הבתים.
-        </p>
-        <div className="bg-slate-900 rounded-2xl border border-slate-800 px-4 py-8 text-center text-slate-500">
-          <div className="text-3xl mb-2">🌳</div>
-          <p>סוללת הנוקאאוט תופיע כאן.</p>
-          <p className="text-xs text-slate-600 mt-2">
-            במובייל: רשימה אנכית סיבוב-סיבוב.
-            <br />
-            בדסקטופ: עץ אופקי במראה RTL.
-          </p>
-        </div>
-      </div>
+      <Section
+        title="סוללת הנוקאאוט"
+        subtitle="5 נקודות לכל מנצח שצדקת בו. ניתן לערוך פעם אחת בסיום שלב הבתים."
+      >
+        <BracketView teams={MOCK_TEAMS} locked={isLocked} />
+      </Section>
+
+      <TeamPickerSheet
+        open={championPickerOpen}
+        title="בחר את אלוף המונדיאל"
+        teams={MOCK_TEAMS}
+        selectedId={champion?.id ?? null}
+        onPick={(t) => setChampion(t)}
+        onClose={() => setChampionPickerOpen(false)}
+      />
     </section>
   );
 }
 
-function Card({
+function Section({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="px-1">
+        <h2 className="text-base font-semibold text-slate-200">{title}</h2>
+        <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function TwoUpCard({ children }: { children: React.ReactNode }) {
+  return <div className="space-y-3">{children}</div>;
+}
+
+function PickCard({
   title,
   emoji,
   pointsHe,
-  placeholder,
+  subtitle,
+  selectedName,
+  selectedFlag,
+  locked,
+  onClick,
 }: {
   title: string;
   emoji: string;
   pointsHe: string;
-  placeholder: string;
+  subtitle: string;
+  selectedName: string | null | undefined;
+  selectedFlag?: string;
+  locked: boolean;
+  onClick: () => void;
 }) {
   return (
-    <div className="bg-slate-900 rounded-2xl border border-slate-800 px-4 py-4 flex items-start gap-3">
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={locked}
+      className="w-full text-start bg-slate-900 rounded-2xl border border-slate-800 hover:border-slate-700 disabled:opacity-60 disabled:hover:border-slate-800 px-4 py-4 flex items-start gap-3 transition"
+    >
       <div className="text-3xl shrink-0">{emoji}</div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
           <h3 className="font-semibold">{title}</h3>
           <span className="text-xs font-bold text-emerald-400">{pointsHe}</span>
         </div>
-        <p className="text-xs text-slate-500 mt-1">{placeholder}</p>
-        <button
-          type="button"
-          className="mt-3 text-sm font-medium text-slate-200 bg-slate-800 hover:bg-slate-700 rounded-lg px-3 py-1.5 transition"
-        >
-          בחר
-        </button>
+        {selectedName ? (
+          <div className="mt-2 flex items-center gap-2">
+            {selectedFlag && <span className="text-2xl">{selectedFlag}</span>}
+            <span className="font-medium">{selectedName}</span>
+          </div>
+        ) : (
+          <p className="text-xs text-slate-500 mt-1">{subtitle}</p>
+        )}
       </div>
-    </div>
+    </button>
   );
 }

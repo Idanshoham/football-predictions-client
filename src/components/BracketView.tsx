@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   buildSlots,
   ROUND_TAB_LABEL_HE,
@@ -14,17 +14,33 @@ type PicksMap = Record<string, string>; // slotId → teamId
 interface Props {
   teams: Team[];
   locked: boolean;
+  /** Initial picks from server (when wired to backend). */
+  initialPicks?: PicksMap;
+  /** Called when picks change. Used by the parent to persist via API. */
+  onChange?: (picks: PicksMap) => void;
 }
 
 const STORAGE_KEY = 'wc26:bracket-draft';
 
-export function BracketView({ teams, locked }: Props) {
+export function BracketView({ teams, locked, initialPicks, onChange }: Props) {
   const teamsById = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
   const slots = useMemo(buildSlots, []);
   const groupedSlots = useMemo(slotsByRound, []);
   const [round, setRound] = useState<BracketRound>('r32');
-  const [picks, setPicks] = useState<PicksMap>(() => loadDraft());
+  const [picks, setPicks] = useState<PicksMap>(
+    () => initialPicks ?? loadDraft(),
+  );
   const [pickerForSlot, setPickerForSlot] = useState<string | null>(null);
+
+  // If the server later sends initial picks, hydrate once.
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (!hydratedRef.current && initialPicks && Object.keys(initialPicks).length > 0) {
+      setPicks(initialPicks);
+      saveDraft(initialPicks);
+      hydratedRef.current = true;
+    }
+  }, [initialPicks]);
 
   const completed = slots.filter((s) => picks[s.id]).length;
   const percent = Math.round((completed / slots.length) * 100);
@@ -33,6 +49,7 @@ export function BracketView({ teams, locked }: Props) {
     const next = { ...picks, [slotId]: team.id };
     setPicks(next);
     saveDraft(next);
+    onChange?.(next);
   }
 
   function clearPick(slotId: string) {
@@ -40,6 +57,7 @@ export function BracketView({ teams, locked }: Props) {
     delete next[slotId];
     setPicks(next);
     saveDraft(next);
+    onChange?.(next);
   }
 
   return (

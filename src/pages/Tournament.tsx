@@ -1,21 +1,92 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { LockBanner } from '../components/LockBanner';
 import { BracketView } from '../components/BracketView';
 import { GroupRankingPicker } from '../components/GroupRankingPicker';
 import { TeamPickerSheet } from '../components/TeamPickerSheet';
+import { PlayerPickerSheet } from '../components/PlayerPickerSheet';
 import {
-  TOURNAMENT_OPENER_ISO,
-  MOCK_TEAMS,
-  MOCK_GROUPS,
-  GROUP_NAMES,
-} from '../mock-data';
-import { isPast } from '../lib/time';
-import type { Team } from '../types';
+  useTeams,
+  usePlayers,
+  useTournamentInfo,
+  useMyTournamentPrediction,
+  useUpsertTournamentPrediction,
+  useMyGroupRankings,
+  useUpsertGroupRanking,
+  useMyBracket,
+  useUpsertBracket,
+} from '../lib/hooks';
+import type { Player, Team } from '../types';
 
 export function Tournament() {
-  const isLocked = isPast(TOURNAMENT_OPENER_ISO);
-  const [champion, setChampion] = useState<Team | null>(null);
+  const { data: tournamentInfo } = useTournamentInfo();
+  const { data: teams = [] } = useTeams();
+  const { data: players = [] } = usePlayers();
+  const { data: myTournament } = useMyTournamentPrediction();
+  const upsertTournament = useUpsertTournamentPrediction();
+  const { data: myGroups = [] } = useMyGroupRankings();
+  const upsertGroup = useUpsertGroupRanking();
+  const { data: myBracket } = useMyBracket();
+  const upsertBracket = useUpsertBracket();
+
   const [championPickerOpen, setChampionPickerOpen] = useState(false);
+  const [goldenBootPickerOpen, setGoldenBootPickerOpen] = useState(false);
+
+  const teamsById = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
+  const playersById = useMemo(
+    () => new Map(players.map((p) => [p.id, p])),
+    [players],
+  );
+
+  const groupsByName = useMemo(() => {
+    const map = new Map<string, Team[]>();
+    for (const t of teams) {
+      if (!t.groupName) continue;
+      const arr = map.get(t.groupName) ?? [];
+      arr.push(t);
+      map.set(t.groupName, arr);
+    }
+    return map;
+  }, [teams]);
+
+  const groupNames = useMemo(
+    () => [...groupsByName.keys()].sort(),
+    [groupsByName],
+  );
+
+  const myGroupByName = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const g of myGroups) map.set(g.groupName, g.ranking);
+    return map;
+  }, [myGroups]);
+
+  const initialBracketPicks = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const p of myBracket?.picks ?? []) map[p.matchSlot] = p.winnerTeamId;
+    return map;
+  }, [myBracket]);
+
+  const champion = myTournament?.championTeamId
+    ? (teamsById.get(myTournament.championTeamId) ?? null)
+    : null;
+  const goldenBoot = myTournament?.goldenBootPlayerId
+    ? (playersById.get(myTournament.goldenBootPlayerId) ?? null)
+    : null;
+
+  const bracketLockState = tournamentInfo?.bracketLockState ?? 'open';
+  const tournamentLocked = tournamentInfo?.tournamentLocked ?? false;
+
+  function handleSelectChampion(team: Team) {
+    upsertTournament.mutate({
+      championTeamId: team.id,
+      goldenBootPlayerId: myTournament?.goldenBootPlayerId ?? null,
+    });
+  }
+  function handleSelectGoldenBoot(player: Player) {
+    upsertTournament.mutate({
+      championTeamId: myTournament?.championTeamId ?? null,
+      goldenBootPlayerId: player.id,
+    });
+  }
 
   return (
     <section className="space-y-5">
@@ -28,42 +99,54 @@ export function Tournament() {
       </header>
 
       <LockBanner
-        state={isLocked ? 'locked-final' : 'open'}
-        nextTransitionAt={TOURNAMENT_OPENER_ISO}
+        state={bracketLockState}
+        nextTransitionAt={tournamentInfo?.openerKickoffAt}
       />
 
-      <TwoUpCard>
-        <PickCard
-          title="אלוף המונדיאל"
-          emoji="🏆"
-          pointsHe="+20 נק׳"
-          subtitle="הקבוצה שלפי דעתך תזכה בטורניר"
-          selectedName={champion?.nameHe}
-          selectedFlag={champion?.flagEmoji}
-          locked={isLocked}
-          onClick={() => setChampionPickerOpen(true)}
-        />
-        <PickCard
-          title="מלך השערים"
-          emoji="⚽"
-          pointsHe="+20 נק׳"
-          subtitle="השחקן עם מספר השערים הגבוה ביותר"
-          selectedName={null}
-          locked={isLocked}
-          onClick={() => {
-            // Player picker is a follow-up — needs full rosters.
-          }}
-        />
-      </TwoUpCard>
+      <PickCard
+        title="אלוף המונדיאל"
+        emoji="🏆"
+        pointsHe="+20 נק׳"
+        subtitle="הקבוצה שלפי דעתך תזכה בטורניר"
+        selectedName={champion?.nameHe}
+        selectedFlag={champion?.flagEmoji}
+        locked={tournamentLocked}
+        onClick={() => setChampionPickerOpen(true)}
+      />
+      <PickCard
+        title="מלך השערים"
+        emoji="⚽"
+        pointsHe="+20 נק׳"
+        subtitle={
+          players.length === 0
+            ? 'סגלי הקבוצות עוד לא נטענו'
+            : 'השחקן עם מספר השערים הגבוה ביותר'
+        }
+        selectedName={goldenBoot?.nameHe}
+        locked={tournamentLocked || players.length === 0}
+        onClick={() => setGoldenBootPickerOpen(true)}
+      />
 
-      <Section title="דירוגי הבתים" subtitle="5 נקודות לכל קבוצה במקום הנכון בכל בית.">
+      <Section
+        title="דירוגי הבתים"
+        subtitle="5 נקודות לכל קבוצה במקום הנכון בכל בית."
+      >
         <div className="space-y-3">
-          {GROUP_NAMES.map((g) => (
+          {groupNames.length === 0 && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl px-4 py-6 text-center text-slate-500 text-sm">
+              אין בתים זמינים עדיין
+            </div>
+          )}
+          {groupNames.map((g) => (
             <GroupRankingPicker
               key={g}
               groupName={g}
-              teams={MOCK_GROUPS[g]}
-              locked={isLocked}
+              teams={groupsByName.get(g) ?? []}
+              initial={myGroupByName.get(g)}
+              locked={tournamentLocked}
+              onChange={(ranking) => {
+                upsertGroup.mutate({ groupName: g, ranking });
+              }}
             />
           ))}
         </div>
@@ -73,16 +156,34 @@ export function Tournament() {
         title="סוללת הנוקאאוט"
         subtitle="5 נקודות לכל מנצח שצדקת בו. ניתן לערוך פעם אחת בסיום שלב הבתים."
       >
-        <BracketView teams={MOCK_TEAMS} locked={isLocked} />
+        <BracketView
+          teams={teams}
+          locked={
+            bracketLockState === 'locked-final' ||
+            bracketLockState === 'locked-permanently'
+          }
+          initialPicks={initialBracketPicks}
+          onChange={(picks) => {
+            upsertBracket.mutate({ winnersBySlot: picks });
+          }}
+        />
       </Section>
 
       <TeamPickerSheet
         open={championPickerOpen}
         title="בחר את אלוף המונדיאל"
-        teams={MOCK_TEAMS}
+        teams={teams}
         selectedId={champion?.id ?? null}
-        onPick={(t) => setChampion(t)}
+        onPick={handleSelectChampion}
         onClose={() => setChampionPickerOpen(false)}
+      />
+      <PlayerPickerSheet
+        open={goldenBootPickerOpen}
+        title="בחר את מלך השערים"
+        players={players}
+        selectedId={goldenBoot?.id ?? null}
+        onPick={handleSelectGoldenBoot}
+        onClose={() => setGoldenBootPickerOpen(false)}
       />
     </section>
   );
@@ -106,10 +207,6 @@ function Section({
       {children}
     </div>
   );
-}
-
-function TwoUpCard({ children }: { children: React.ReactNode }) {
-  return <div className="space-y-3">{children}</div>;
 }
 
 function PickCard({

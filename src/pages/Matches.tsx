@@ -1,37 +1,25 @@
 import { useMemo, useState } from 'react';
 import { MatchCard } from '../components/MatchCard';
 import { PredictionSheet } from '../components/PredictionSheet';
-import { MOCK_MATCHES } from '../mock-data';
-import { isPast } from '../lib/time';
-import type { Match, MyPrediction } from '../types';
+import { useMatches, useMyPredictions, useUpsertPrediction } from '../lib/hooks';
+import type { Match } from '../types';
 
 export function Matches() {
-  const { upcoming, past } = useMemo(() => {
-    const upcoming = MOCK_MATCHES.filter(
-      (m) => m.status === 'scheduled' && !isPast(m.kickoffAt),
-    );
-    const past = MOCK_MATCHES.filter((m) => m.status === 'full_time');
-    return { upcoming, past };
-  }, []);
+  const { data: upcoming = [] } = useMatches('upcoming');
+  const { data: past = [] } = useMatches('past');
+  const { data: myPredictions = [] } = useMyPredictions();
+  const upsert = useUpsertPrediction();
+
+  const predictionByMatchId = useMemo(() => {
+    const map = new Map<string, (typeof myPredictions)[number]>();
+    for (const p of myPredictions) map.set(p.matchId, p);
+    return map;
+  }, [myPredictions]);
 
   const [activeMatch, setActiveMatch] = useState<Match | null>(null);
-  const [drafts, setDrafts] = useState<Record<string, MyPrediction>>({});
-
-  function handleSubmit(input: {
-    homeScorePred: number;
-    awayScorePred: number;
-    firstScorerPlayerId: string | null;
-  }) {
-    if (!activeMatch) return;
-    setDrafts({
-      ...drafts,
-      [activeMatch.id]: {
-        matchId: activeMatch.id,
-        ...input,
-        pointsTotal: 0,
-      },
-    });
-  }
+  const activePrediction = activeMatch
+    ? (predictionByMatchId.get(activeMatch.id) ?? null)
+    : null;
 
   return (
     <section className="space-y-6">
@@ -54,16 +42,16 @@ export function Matches() {
         )}
         <div className="space-y-2">
           {upcoming.map((m) => {
-            const draft = drafts[m.id];
+            const pred = predictionByMatchId.get(m.id);
             return (
               <MatchCard
                 key={m.id}
                 match={m}
                 onClick={() => setActiveMatch(m)}
                 annotation={
-                  draft ? (
+                  pred ? (
                     <span className="text-xs font-bold text-emerald-300 bg-emerald-900/40 rounded-full px-2 py-1">
-                      {draft.homeScorePred}-{draft.awayScorePred}
+                      {pred.homeScorePred}-{pred.awayScorePred}
                     </span>
                   ) : (
                     <span className="text-xs font-semibold text-slate-300 bg-slate-800 rounded-full px-2 py-1">
@@ -85,28 +73,38 @@ export function Matches() {
           </div>
         )}
         <div className="space-y-2">
-          {past.map((m) => (
-            <MatchCard
-              key={m.id}
-              match={m}
-              annotation={
-                <span className="text-xs font-bold text-emerald-400">
-                  +0 נק׳
-                </span>
-              }
-            />
-          ))}
+          {past.map((m) => {
+            const pred = predictionByMatchId.get(m.id);
+            return (
+              <MatchCard
+                key={m.id}
+                match={m}
+                annotation={
+                  pred ? (
+                    <span className="text-xs font-bold text-emerald-400">
+                      +{pred.pointsTotal} נק׳
+                    </span>
+                  ) : null
+                }
+              />
+            );
+          })}
         </div>
       </div>
 
       {activeMatch && (
         <PredictionSheet
-          open={true}
+          open
           match={activeMatch}
           players={[]}
-          initial={drafts[activeMatch.id] ?? null}
+          initial={activePrediction}
           onClose={() => setActiveMatch(null)}
-          onSubmit={handleSubmit}
+          onSubmit={async (input) => {
+            await upsert.mutateAsync({
+              matchId: activeMatch.id,
+              ...input,
+            });
+          }}
         />
       )}
     </section>

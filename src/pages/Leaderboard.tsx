@@ -1,7 +1,7 @@
-import { MOCK_LEADERBOARD } from '../mock-data';
+import { useLeaderboard } from '../lib/hooks';
 
 export function Leaderboard() {
-  const rows = MOCK_LEADERBOARD;
+  const { data: rows = [], isLoading } = useLeaderboard();
 
   return (
     <section className="space-y-4">
@@ -21,32 +21,29 @@ export function Leaderboard() {
           <div className="text-center">תוצאה</div>
         </div>
 
-        {rows.length === 0 && (
+        {isLoading && (
+          <div className="px-4 py-8 text-center text-slate-500 text-sm">
+            טוען...
+          </div>
+        )}
+
+        {!isLoading && rows.length === 0 && (
           <div className="px-4 py-8 text-center text-slate-500 text-sm">
             עוד אין משתתפים
           </div>
         )}
 
         {rows.map((row) => (
-          <button
+          <div
             key={row.userId}
-            type="button"
-            className="w-full grid grid-cols-[2.5rem_1fr_4rem_3rem_3rem] gap-2 px-4 py-3 items-center hover:bg-slate-800/50 transition text-start"
+            className="grid grid-cols-[2.5rem_1fr_4rem_3rem_3rem] gap-2 px-4 py-3 items-center"
           >
-            <div className="font-bold text-slate-400 tabular-nums">
-              {row.rank}
-            </div>
+            <div className="font-bold text-slate-400 tabular-nums">{row.rank}</div>
             <div className="font-medium truncate">{row.name}</div>
-            <div className="text-center font-bold tabular-nums">
-              {row.totalPoints}
-            </div>
-            <div className="text-center tabular-nums text-slate-400">
-              {row.exactCount}
-            </div>
-            <div className="text-center tabular-nums text-slate-400">
-              {row.correctResultCount}
-            </div>
-          </button>
+            <div className="text-center font-bold tabular-nums">{row.totalPoints}</div>
+            <div className="text-center tabular-nums text-slate-400">{row.exactCount}</div>
+            <div className="text-center tabular-nums text-slate-400">{row.correctResultCount}</div>
+          </div>
         ))}
       </div>
 

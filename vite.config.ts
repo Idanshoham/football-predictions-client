@@ -1,9 +1,10 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 
-// When deployed to GitHub Pages at https://<user>.github.io/football-predictions-client/
-// Vite needs the base path so asset URLs resolve correctly.
+// Deployed at https://idanshoham.github.io/football-predictions-client/
+// so Vite needs the base path for production asset URLs.
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   base: '/football-predictions-client/',
 });

@@ -1,11 +1,17 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Heebo", system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+  --color-brand-50:  #f0f9ff;
+  --color-brand-500: #3b82f6;
+  --color-brand-600: #2563eb;
+  --color-brand-900: #1e3a8a;
+}
 
 html, body, #root {
   height: 100%;
 }
 
 body {
-  font-family: 'Heebo', system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif;
+  font-family: var(--font-sans);
 }
